@@ -13,7 +13,7 @@ backend/__pycache__/
 
 # scratch databases and backups (app.db itself IS tracked)
 *.bak
-backend/app.db.bak-before-swap
+*.bak-*
 backend/seed_test.db
 backend/verify.db
 backend/seed_run.log
