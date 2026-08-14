@@ -1,0 +1,31 @@
+# Repo scope: the backend only. Everything else at the root stays local
+# (model checkpoints, notebooks, datasets, CSV outputs).
+/*
+!/.gitignore
+!/backend/
+
+# --- excluded from backend ---
+# 19.5 MB of dictation audio (git has no trailing comments — keep these bare)
+backend/media/
+backend/__pycache__/
+**/__pycache__/
+*.py[cod]
+
+# scratch databases and backups (app.db itself IS tracked)
+*.bak
+backend/app.db.bak-before-swap
+backend/seed_test.db
+backend/verify.db
+backend/seed_run.log
+
+# local env / secrets
+.env
+.env.*
+*.local
+
+# editor / OS
+.vscode/
+.idea/
+.ipynb_checkpoints/
+Thumbs.db
+desktop.ini
