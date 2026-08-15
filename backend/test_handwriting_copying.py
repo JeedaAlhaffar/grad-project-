@@ -87,7 +87,7 @@ print("\n1) letter_classes — the mapping the grade depends on")
 # ===========================================================================
 label_map_path = Path(
     os.environ.get("HANDWRITING_MODEL_DIR")
-    or ROOT / "beginer level copy letters" / "model"
+    or ROOT / "Jeeda" / "model"
 ) / "label_map.npy"
 
 known_classes: set[str] = set()

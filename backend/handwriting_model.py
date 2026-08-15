@@ -10,7 +10,7 @@ It is what turns "the student drew something" into "the student drew a medial
     student strokes  ->  handwriting_preprocessing (verbatim training pipeline)
                      ->  BiGRU + MHA  ->  107-way softmax  ->  E_ay / I_ba / ...
 
-The checkpoint lives outside the backend, in `../beginer level copy letters/model`:
+The checkpoint lives outside the backend, in `../Jeeda/model`:
     bgru_mha_final_model.h5   label_map.npy   config.json
 (point HANDWRITING_MODEL_DIR somewhere else if you move it).
 
@@ -35,8 +35,14 @@ from typing import Optional
 _log = logging.getLogger("handwriting")
 
 # Folder holding bgru_mha_final_model.h5 + label_map.npy + config.json.
+#
+# `Jeeda/model` is the authoritative delivery of this checkpoint. A byte-identical
+# copy also sits under `beginer level copy letters/model`, which is what this
+# used to point at; keeping two roots means the day someone retrains, only one
+# gets updated and the backend silently keeps serving the stale one. Jeeda wins,
+# and the other copy should be treated as an archive.
 _DEFAULT_DIR = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "beginer level copy letters", "model")
+    os.path.join(os.path.dirname(__file__), "..", "Jeeda", "model")
 )
 MODEL_DIR = os.environ.get("HANDWRITING_MODEL_DIR") or _DEFAULT_DIR
 

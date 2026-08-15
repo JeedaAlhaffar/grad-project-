@@ -74,7 +74,7 @@ class Settings:
     # geometric trace score alone (and to the mock for free_draw).
     HANDWRITING_ENABLED: bool = os.environ.get("HANDWRITING_ENABLED", "1") == "1"
     # Folder with bgru_mha_final_model.h5, label_map.npy, config.json; defaults
-    # (in handwriting_model.py) to ../beginer level copy letters/model.
+    # (in handwriting_model.py) to ../Jeeda/model — the authoritative copy.
     HANDWRITING_MODEL_DIR: str = os.environ.get("HANDWRITING_MODEL_DIR", "")
 
     # --- AI: error detection (GEC + ARETA) ---

@@ -3,7 +3,7 @@
 Preprocessing pipeline for the Arabic Handwriting Recognition model.
 
 *** VERBATIM MIRROR — DO NOT "IMPROVE" THIS FILE ***
-This is a copy of `beginer level copy letters/handwriting_api/preprocessing.py`,
+This is a copy of `Jeeda/handwriting_api/preprocessing.py`,
 which is itself a step-for-step copy of the training notebook (Section 3
 preprocessing -> augmentation's center_and_normalize -> feature extraction).
 The model was trained on exactly these numbers; any change here silently
