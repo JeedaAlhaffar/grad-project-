@@ -53,7 +53,12 @@ def _evaluate(exercise: Exercise, body: AttemptSubmitIn, db: Session):
                              or content.get("prompt")
                              or exercise.title)
             else:
-                reference = content.get("text")                # dictation target
+                # Dictation target. `text` is the fully diacritized script,
+                # which the student cannot type on an ordinary keyboard, so
+                # prefer `text_plain` — seeded precisely for grading. The
+                # grader dediacritizes defensively too; this just hands it the
+                # right field to begin with.
+                reference = content.get("text_plain") or content.get("text")
             return ai_service.evaluate_text(wt, body.submitted_text or "", reference)
     except ai_service.AINotImplemented:
         return None, None

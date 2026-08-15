@@ -11,7 +11,8 @@ Status:
   * evaluate_text / composition (تعبير) -> REAL pipeline: error detection (GEC)
         -> topic relevance (hybrid CrossEncoder) -> AES traits (see below)
   * evaluate_text / words (كلمات)       -> REAL error detection (GEC)
-  * evaluate_text / dictation (إملاء)   -> REAL deterministic word-diff
+  * evaluate_text / dictation (إملاء)   -> REAL aligner + ARETA-tagged errors
+        (dictation_grader.py; deterministic, no ML dependency)
   * evaluate_copying (نسخ الحروف)       -> REAL handwriting classifier +
         trace score, per copying mode (see copying_grader.py)
   * everything else                      -> DETERMINISTIC MOCK (settings.AI_MOCK)
@@ -389,57 +390,36 @@ def _evaluate_words(text: str, gec: dict) -> tuple[float, Feedback]:
 
 
 def _evaluate_dictation(text: str, reference: str) -> tuple[float, Feedback]:
-    """Grade إملاء by comparing the student's text to the target, word by word."""
-    import difflib
+    """Grade إملاء by aligning the student's text to the dictated reference.
 
-    target_words = [w for w in reference.split() if w]
-    student_words = [w for w in text.split() if w]
-    if not target_words:
-        return 0.0, {"summary": "لا يوجد نص مرجعي", "strengths": [],
-                     "errors": [], "suggestions": []}
+    Delegates to `dictation_grader`, which replaces the word-by-word difflib
+    comparison this used to do. The reasons, measured in
+    `advanced_level_dictation_assessment.ipynb`:
 
-    sm = difflib.SequenceMatcher(a=target_words, b=student_words)
-    correct = sum(
-        block.size for block in sm.get_matching_blocks()
-    )
-    score = round(max(0.0, min(100.0, 100.0 * correct / len(target_words))), 1)
+      * difflib cannot represent a merged or split word, so `الآباء والأجداد`
+        written as one token was charged as two errors and the words after it
+        were mis-blamed. Word localisation on the weakest simulated students
+        was 0.857 against 0.929 for the aligner used now — the old code failed
+        hardest on the students who most need accurate feedback.
+      * every error came back as "خطأ إملائي" with no type, so the app could
+        not tell a student *why* a word was wrong. Errors now carry an ARETA
+        tag (the same tagset `gec_service` emits) and a soft/hard class saying
+        whether the student misheard the word or simply misspelt a sound they
+        heard correctly.
+      * a word with one wrong letter scored the same as leaving it blank.
 
-    errors: list[dict] = []
-    for tag, i1, i2, j1, j2 in sm.get_opcodes():
-        if tag == "replace":
-            for k in range(max(i2 - i1, j2 - j1)):
-                expected = target_words[i1 + k] if i1 + k < i2 else None
-                got = student_words[j1 + k] if j1 + k < j2 else None
-                errors.append({
-                    "message": f'كتبت "{got}" والصواب "{expected}"'
-                    if got and expected else "خطأ إملائي",
-                    "correction": expected, "span": got, "type": "spelling",
-                })
-        elif tag == "delete":
-            for k in range(i1, i2):
-                errors.append({
-                    "message": f'نسيت كلمة "{target_words[k]}"',
-                    "correction": target_words[k], "span": None, "type": "spelling",
-                })
-        elif tag == "insert":
-            for k in range(j1, j2):
-                errors.append({
-                    "message": f'كلمة زائدة "{student_words[k]}"',
-                    "correction": None, "span": student_words[k], "type": "spelling",
-                })
+    Signature and Feedback shape are unchanged, so no client change is needed.
+    """
+    from dictation_grader import DictationGrader, DICTATION_SEVERITY
 
-    summary = ("ممتاز! إملاء صحيح" if score >= 90 else
-               "أحسنت، أخطاء قليلة" if score >= 75 else
-               "محاولة جيدة، انتبه للأخطاء" if score >= 50 else
-               "تحتاج إلى مزيد من التدريب على الإملاء")
+    result = DictationGrader(severity=DICTATION_SEVERITY).grade(reference, text)
     feedback: Feedback = {
-        "summary": summary,
-        "strengths": ["كتابة صحيحة لمعظم الكلمات"] if score >= 75 else [],
-        "errors": errors[:20],
-        "suggestions": (["راجع الكلمات التي أخطأت فيها وأعد كتابتها"]
-                        if errors else ["أحسنت، حافظ على هذا المستوى"]),
+        "summary": result["summary"],
+        "strengths": result["strengths"],
+        "errors": result["errors"][:settings.GEC_MAX_ERRORS],
+        "suggestions": result["suggestions"],
     }
-    return score, feedback
+    return result["score"], feedback
 
 
 # ===========================================================================
