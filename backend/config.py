@@ -77,6 +77,18 @@ class Settings:
     # (in handwriting_model.py) to ../Jeeda/model — the authoritative copy.
     HANDWRITING_MODEL_DIR: str = os.environ.get("HANDWRITING_MODEL_DIR", "")
 
+    # --- AI: words/sentences (المستوى المتوسط) — ADAB word recognition ---
+    # A DIFFERENT model from the copying one above: a PyTorch Conformer+CTC that
+    # reads a whole hand-written word (46 allograph features -> 39-symbol
+    # alphabet), reported CER 1.65% / WER 6.01%. It never touches Jeeda/, which
+    # belongs to the beginner letter classifier alone.
+    # Needs BOTH best_model_adab.pth and feat_norm_adab.pt in WORD_MODEL_DIR;
+    # with either missing, word grading falls back rather than guessing.
+    WORD_MODEL_ENABLED: bool = os.environ.get("WORD_MODEL_ENABLED", "1") == "1"
+    # Folder with best_model_adab.pth + feat_norm_adab.pt; defaults (in
+    # word_handwriting_model.py) to ../adab_model.
+    WORD_MODEL_DIR: str = os.environ.get("WORD_MODEL_DIR", "")
+
     # --- AI: error detection (GEC + ARETA) ---
     # Correction + tagged error extraction, from ../arabic_gec_system.
     GEC_ENABLED: bool = os.environ.get("GEC_ENABLED", "1") == "1"

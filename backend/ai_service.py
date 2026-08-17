@@ -86,6 +86,54 @@ def evaluate_copying(
 
 
 # ===========================================================================
+# 1b) Words (كلمات / جمل) — grade a hand-WRITTEN word against its target
+# ===========================================================================
+def evaluate_words_drawing(
+    target_text: str, submitted_drawing: list
+) -> tuple[float, Feedback]:
+    """Grade a drawn word/sentence for the intermediate level.
+
+    REAL pipeline (see word_grader.py): the ADAB Conformer reads the strokes
+    into text, then the dictation grader compares that text to the target, so
+    the student gets the same tagged Arabic error cards as everywhere else.
+
+    This is NOT `evaluate_copying`. That grades one drawn LETTER with the Keras
+    BiGRU+MHA classifier out of Jeeda/; this grades a whole WORD with the
+    PyTorch Conformer out of adab_model/. The two models share nothing.
+
+    Falls through to the mock when the checkpoint or the normalisation stats
+    are missing, so a student is never blocked by a model.
+    """
+    try:
+        import word_grader
+
+        result = word_grader.grade(
+            target_text, submitted_drawing,
+            use_model=settings.WORD_MODEL_ENABLED,
+        )
+        if result is not None:
+            return result
+    except Exception as exc:            # torch/checkpoint/deps missing, bad input
+        if not settings.AI_MOCK:
+            raise AINotImplemented(f"evaluate_words_drawing: {exc}")
+
+    if not settings.AI_MOCK:
+        raise AINotImplemented("evaluate_words_drawing")
+
+    strokes = submitted_drawing or []
+    n_points = sum(len(s) for s in strokes if isinstance(s, (list, tuple)))
+    score = 70.0 if n_points >= 8 else 0.0
+    feedback: Feedback = {
+        "summary": "أحسنت! واصل التدريب" if score else "لم نتمكّن من قراءة ما كتبت",
+        "strengths": ["محاولة جيدة"] if score else [],
+        "errors": [],
+        "suggestions": [f'تدرّب على كتابة "{target_text}".'],
+        "recognition": {"recognised": False, "target": target_text, "mock": True},
+    }
+    return score, feedback
+
+
+# ===========================================================================
 # 2) Text (كلمات / إملاء / تعبير) — scoring + error detection
 # ===========================================================================
 #   * composition (تعبير) -> the full three-stage pipeline (see
@@ -112,15 +160,22 @@ def evaluate_text(
         elif not settings.AI_MOCK:
             raise AINotImplemented("evaluate_text/composition (AES disabled)")
 
-    # --- إملاء: diff against the dictation reference (deterministic) ------
-    if writing_type == WritingType.dictation and reference:
+    # --- إملاء and كلمات: diff against the known reference (deterministic) -
+    # Both types give us the exact expected string, so both are graded the same
+    # way: align the answer to the reference and price the differences. For
+    # كلمات that reference is the word the student was asked to copy, which is
+    # also what the hand-written branch (word_grader) compares against — so a
+    # typed answer and a drawn one are judged by one standard.
+    if writing_type in (WritingType.dictation, WritingType.words) and reference:
         return _evaluate_dictation(text, reference)
 
-    # --- كلمات: real error detection (GEC) --------------------------------
-    if writing_type == WritingType.words and settings.GEC_ENABLED and text:
-        result = _detect_errors(text)
-        if result is not None:
-            return _evaluate_words(text, result)
+    # NOTE: كلمات deliberately does NOT route to GEC. A كلمات exercise is a
+    # copying task — the student reproduces the word shown — so it is graded
+    # against its target above, exactly like إملاء. GEC (correction + ARETA
+    # tagging) belongs to the professional level, where تعبير is free writing
+    # with no reference to diff against. A كلمات item with no target is bad
+    # content, not a case to spell-check: it falls through to the mock, or
+    # raises with AI_MOCK=0 so the gap is visible instead of silently scored.
 
     if not settings.AI_MOCK:
         raise AINotImplemented("evaluate_text")

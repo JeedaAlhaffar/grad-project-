@@ -7,6 +7,11 @@ delegated to `ai_service` (currently mocked); when AI_MOCK is off and the real
 models are not wired yet, the attempt is stored as `evaluation_status="pending"`
 and returned with HTTP 202 so the flow still works end-to-end.
 
+A كلمات exercise can be answered two ways, so it has two evaluators: the
+student may TYPE the word (graded as text, like إملاء) or WRITE it by hand on
+the canvas (graded by the ADAB recogniser, see word_grader.py). Which one ran
+is decided by whichever field the client sent.
+
 Screens: the copying/dictation/composition/words exercise screens + the
 evaluation result screen.
 """
@@ -29,6 +34,17 @@ router = APIRouter(tags=["attempts"])
 MAX_SCORE = 100.0
 
 
+def _words_target(exercise: Exercise) -> str:
+    """The single word/sentence a كلمات exercise asks for.
+
+    Both seeders (seed_intermediate_words.py, seed_khatt_sentences.py) store it
+    as content={"words": [target]}; the title carries the same string, so it is
+    a safe fallback for hand-made content.
+    """
+    words = (exercise.content or {}).get("words") or []
+    return str(words[0]) if words else (exercise.title or "")
+
+
 def _evaluate(exercise: Exercise, body: AttemptSubmitIn, db: Session):
     """Run the (AI) evaluator for this exercise/submission.
 
@@ -45,6 +61,11 @@ def _evaluate(exercise: Exercise, body: AttemptSubmitIn, db: Session):
                 item.letter, body.submitted_drawing or [],
                 body.copying_mode.value if body.copying_mode else "free_draw",
             )
+        elif wt == WritingType.words and body.submitted_drawing:
+            # Hand-written word: the ADAB recogniser reads it, then the same
+            # dictation grader compares the reading to the target.
+            return ai_service.evaluate_words_drawing(
+                _words_target(exercise), body.submitted_drawing)
         else:
             content = exercise.content or {}
             if wt == WritingType.composition:
@@ -52,6 +73,14 @@ def _evaluate(exercise: Exercise, body: AttemptSubmitIn, db: Session):
                 reference = (exercise.instructions
                              or content.get("prompt")
                              or exercise.title)
+            elif wt == WritingType.words:
+                # A كلمات exercise asks the student to REPRODUCE the word shown
+                # ("اكتب الكلمة الظاهرة أمامك"), so the only thing worth grading
+                # is whether they wrote that word. Hand it the target, exactly
+                # as the hand-written branch above does — otherwise the typed
+                # answer is only spell-checked and any correctly-spelled text
+                # scores full marks.
+                reference = _words_target(exercise)
             else:
                 # Dictation target. `text` is the fully diacritized script,
                 # which the student cannot type on an ordinary keyboard, so
@@ -82,6 +111,14 @@ def submit_attempt(
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST,
                 "copying exercises need copying_item_id, copying_mode and submitted_drawing.")
+    elif ex.writing_type == WritingType.words:
+        # either answer form is valid — typed or hand-written
+        if not body.submitted_drawing and not (
+                body.submitted_text and body.submitted_text.strip()):
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                "words exercises need submitted_text (typed) "
+                "or submitted_drawing (hand-written).")
     else:
         if not (body.submitted_text and body.submitted_text.strip()):
             raise HTTPException(

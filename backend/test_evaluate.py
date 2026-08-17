@@ -50,8 +50,10 @@ for label, t in [("WEAK", weak), ("STRONG", strong),
     score, fb = ai_service.evaluate_text(WritingType.composition, t, PROMPT)
     show(f"{label} composition [{time.time() - t0:.1f}s]", score, fb)
 
-# words: detection only
-score, fb = ai_service.evaluate_text(WritingType.words, "انا اكلت التفاحه فى البيت")
+# words: a copying task — graded against the word the exercise asked for, not
+# spell-checked. GEC is the professional level's tool; كلمات never uses it.
+score, fb = ai_service.evaluate_text(
+    WritingType.words, "التفاحه", reference="التفاحة")
 show("WORDS", score, fb)
 
 # dictation diff
